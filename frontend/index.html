@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Pollution Monitor | Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+
+        body {
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .bg-mesh {
+            background-color: #0f172a;
+            background-image:
+                radial-gradient(at 0% 0%, rgba(30, 58, 138, 0.5) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(88, 28, 135, 0.5) 0px, transparent 50%);
+        }
+    </style>
+</head>
+
+<body class="bg-mesh text-white min-h-screen">
+    <nav class="p-6 border-b border-white/10 glass sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <i data-lucide="wind" class="text-blue-400"></i>
+                <h1 class="text-2xl font-bold tracking-tight">Eco<span class="text-blue-400">Pulse</span></h1>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="showManagement()"
+                    class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 transition-all font-medium flex items-center gap-2">
+                    <i data-lucide="plus-circle" size="18"></i>
+                    Add Data
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto p-6 space-y-8">
+        <!-- Dashboard Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="glass p-6 rounded-2xl">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="p-3 bg-blue-500/10 rounded-xl text-blue-400">
+                        <i data-lucide="activity"></i>
+                    </div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Latest AQI</span>
+                </div>
+                <div id="latest-aqi" class="text-4xl font-bold">--</div>
+                <p id="aqi-status" class="mt-2 text-sm text-slate-400 italic">No data available</p>
+            </div>
+
+            <div class="glass p-6 rounded-2xl">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="p-3 bg-purple-500/10 rounded-xl text-purple-400">
+                        <i data-lucide="cloud-sun"></i>
+                    </div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Predicted Temp</span>
+                </div>
+                <div id="predicted-temp" class="text-4xl font-bold">--°C</div>
+                <p id="weather-condition" class="mt-2 text-sm text-slate-400 italic">Waiting for prediction</p>
+            </div>
+
+            <div class="glass p-6 rounded-2xl border-blue-500/30">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="p-3 bg-green-500/10 rounded-xl text-green-400">
+                        <i data-lucide="map-pin"></i>
+                    </div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Active Location</span>
+                </div>
+                <select id="location-select" onchange="loadDashboard(this.value)"
+                    class="bg-transparent border-none text-xl font-bold w-full focus:ring-0 cursor-pointer">
+                    <option value="" class="bg-slate-900">Select Location</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- AI Advice Panel -->
+            <div class="glass p-8 rounded-3xl border-white/5 space-y-6">
+                <div class="flex items-center gap-3 border-b border-white/10 pb-4">
+                    <i data-lucide="sparkles" class="text-yellow-400 animate-pulse"></i>
+                    <h2 class="text-xl font-bold">AI Health Advice</h2>
+                </div>
+                <div id="ai-advice-content"
+                    class="text-slate-300 leading-relaxed min-h-[200px] prose prose-invert max-w-none">
+                    Select a location to receive personalized AI advice based on real-time pollution and weather data.
+                </div>
+                <div class="flex justify-end">
+                    <button id="refresh-advice"
+                        class="text-sm font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-2">
+                        <i data-lucide="refresh-cw" size="14"></i>
+                        Re-analyze
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pollution Breakdown -->
+            <div class="glass p-8 rounded-3xl border-white/5 space-y-6">
+                <div class="flex items-center gap-3 border-b border-white/10 pb-4">
+                    <i data-lucide="bar-chart-3" class="text-blue-400"></i>
+                    <h2 class="text-xl font-bold">Pollutant Analysis</h2>
+                </div>
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center group">
+                        <span class="text-slate-400">PM2.5</span>
+                        <div class="flex items-center gap-4 flex-1 mx-8">
+                            <div class="h-2 bg-slate-800 rounded-full flex-1 overflow-hidden">
+                                <div id="pm25-bar" class="h-full bg-blue-500 transition-all duration-1000"
+                                    style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <span id="pm25-val" class="font-mono">--</span>
+                    </div>
+                    <div class="flex justify-between items-center group">
+                        <span class="text-slate-400">PM10</span>
+                        <div class="flex items-center gap-4 flex-1 mx-8">
+                            <div class="h-2 bg-slate-800 rounded-full flex-1 overflow-hidden">
+                                <div id="pm10-bar" class="h-full bg-blue-400 transition-all duration-1000"
+                                    style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <span id="pm10-val" class="font-mono">--</span>
+                    </div>
+                    <div id="genai-analysis-text"
+                        class="mt-4 p-4 rounded-xl bg-white/5 text-sm text-slate-400 border border-white/5 italic">
+                        Select a location for deep analysis.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Management Modal (Simple for now) -->
+    <div id="modal"
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-6 z-[100]">
+        <div class="glass max-w-md w-full p-8 rounded-3xl space-y-6 relative border border-white/10">
+            <button onclick="hideManagement()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i data-lucide="x"></i>
+            </button>
+            <h2 class="text-2xl font-bold">Add Pollution Record</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">Fetch by City Name</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="form-city-name"
+                            class="flex-1 bg-white/5 border border-white/10 rounded-xl p-3 focus:border-purple-500 outline-none"
+                            placeholder="e.g. London, Delhi, Tokyo">
+                        <button id="btn-fetch-city"
+                            class="px-4 rounded-xl bg-purple-600 hover:bg-purple-500 transition-all flex items-center justify-center">
+                            <i data-lucide="search" size="18"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="relative flex items-center gap-4 py-2">
+                    <div class="h-px bg-white/10 flex-1"></div>
+                    <span class="text-xs text-slate-500 font-bold uppercase tracking-widest">or by ID</span>
+                    <div class="h-px bg-white/10 flex-1"></div>
+                </div>
+                <button id="btn-fetch-real"
+                    class="w-full py-3 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-400 font-bold hover:bg-blue-600/30 transition-all flex items-center justify-center gap-2">
+                    <i data-lucide="refresh-cw" size="18"></i>
+                    Fetch Real-Time Data for Location ID
+                </button>
+                <div class="relative flex items-center gap-4 py-2">
+                    <div class="h-px bg-white/10 flex-1"></div>
+                    <span class="text-xs text-slate-500 font-bold uppercase tracking-widest">or manual entry</span>
+                    <div class="h-px bg-white/10 flex-1"></div>
+                </div>
+                <form id="record-form" class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-2">Location ID</label>
+                        <input type="number" id="form-loc-id"
+                            class="w-full bg-white/5 border border-white/10 rounded-xl p-3 focus:border-blue-500 outline-none"
+                            placeholder="1">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-2">AQI Value</label>
+                        <input type="number" id="form-aqi"
+                            class="w-full bg-white/5 border border-white/10 rounded-xl p-3 focus:border-blue-500 outline-none"
+                            placeholder="0-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-2">PM 2.5</label>
+                            <input type="number" id="form-pm25" step="0.1"
+                                class="w-full bg-white/5 border border-white/10 rounded-xl p-3 focus:border-blue-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-2">PM 10</label>
+                            <input type="number" id="form-pm10" step="0.1"
+                                class="w-full bg-white/5 border border-white/10 rounded-xl p-3 focus:border-blue-500 outline-none">
+                        </div>
+                    </div>
+                    <button type="submit"
+                        class="w-full py-4 rounded-xl bg-blue-600 font-bold hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20">
+                        Add Record
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <script src="js/app.js"></script>
+        <script>lucide.createIcons();</script>
+</body>
+
+</html>
