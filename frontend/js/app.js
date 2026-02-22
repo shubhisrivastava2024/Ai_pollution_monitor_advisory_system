@@ -1,216 +1,260 @@
-const API_BASE = window.location.origin;
+// ===============================
+// CONFIG
+// ===============================
+const API_BASE = "http://127.0.0.1:8000"; // Change if deployed
 
-// State management
 let currentSelectedLocation = null;
 
-// Initialize
+// ===============================
+// INITIALIZE
+// ===============================
 document.addEventListener('DOMContentLoaded', () => {
+
     fetchLocations();
 
-    // Refresh advice button
+    // Refresh AI Advice
     document.getElementById('refresh-advice').addEventListener('click', () => {
         if (currentSelectedLocation) {
             fetchAIInsights(currentSelectedLocation);
         }
     });
 
-    // Form submission
-    document.getElementById('record-form').addEventListener('submit', async (e) => {
-        // ... (manual submission code)
-    });
-
-    // Fetch by City button
+    // ===============================
+    // FETCH BY CITY
+    // ===============================
     document.getElementById('btn-fetch-city').addEventListener('click', async () => {
-        const cityName = document.getElementById('form-city-name').value;
+
+        const cityName = document.getElementById('form-city-name').value.trim();
         if (!cityName) {
             alert('Please enter a city name.');
             return;
         }
 
         const btn = document.getElementById('btn-fetch-city');
-        const originalContent = btn.innerHTML;
+        const original = btn.innerHTML;
         btn.innerHTML = '<i data-lucide="loader" class="animate-spin" size="18"></i>';
         lucide.createIcons();
 
         try {
-            const resp = await fetch(`${API_BASE}/pollution/fetch-by-city/${encodeURIComponent(cityName)}`, { method: 'POST' });
-            if (resp.ok) {
-                const record = await resp.json();
-                alert(`Data for ${cityName} fetched and saved successfully!`);
-                hideManagement();
+            const resp = await fetch(`${API_BASE}/pollution/fetch-by-city/${encodeURIComponent(cityName)}`, {
+                method: 'POST'
+            });
 
-                // Refresh locations list just in case a new one was created
-                document.getElementById('location-select').innerHTML = '<option value="" class="bg-slate-900">Select Location</option>';
-                await fetchLocations();
+            if (!resp.ok) throw await resp.json();
 
-                loadDashboard(record.location_id);
-                document.getElementById('location-select').value = record.location_id;
-            } else {
-                const err = await resp.json();
-                alert(`Error: ${err.detail || 'Failed to fetch data for city'}`);
-            }
-        } catch (e) {
-            console.error(e);
-            alert('Connection error.');
+            const record = await resp.json();
+
+            alert(`Data for ${cityName} fetched successfully!`);
+            hideManagement();
+
+            await fetchLocations();
+            loadDashboard(record.location_id);
+            document.getElementById('location-select').value = record.location_id;
+
+        } catch (err) {
+            alert(err.detail || "Failed to fetch city data.");
         } finally {
-            btn.innerHTML = originalContent;
+            btn.innerHTML = original;
             lucide.createIcons();
         }
     });
 
-    // Real-time fetch button
+    // ===============================
+    // REAL-TIME FETCH BY LOCATION ID
+    // ===============================
     document.getElementById('btn-fetch-real').addEventListener('click', async () => {
+
         const locId = document.getElementById('form-loc-id').value;
         if (!locId) {
-            alert('Please enter a Location ID first.');
+            alert('Please enter a Location ID.');
             return;
         }
 
         const btn = document.getElementById('btn-fetch-real');
-        const originalText = btn.innerHTML;
+        const original = btn.innerHTML;
         btn.innerHTML = '<i data-lucide="loader" class="animate-spin" size="18"></i> Fetching...';
         lucide.createIcons();
 
         try {
-            // Updated endpoint name
-            const resp = await fetch(`${API_BASE}/pollution/fetch-by-city/${locId}`, { method: 'POST' });
-            if (resp.ok) {
-                alert('Real-time data fetched and saved successfully!');
-                hideManagement();
-                loadDashboard(locId);
-            } else {
-                const err = await resp.json();
-                alert(`Error: ${err.detail || 'Failed to fetch real-time data'}`);
-            }
-        } catch (e) {
-            console.error(e);
-            alert('Connection error. Is the server running?');
+            const resp = await fetch(`${API_BASE}/pollution/fetch-real/${locId}`, {
+                method: 'POST'
+            });
+
+            if (!resp.ok) throw await resp.json();
+
+            alert("Real-time data fetched successfully!");
+            hideManagement();
+            loadDashboard(locId);
+
+        } catch (err) {
+            alert(err.detail || "Failed to fetch real-time data.");
         } finally {
-            btn.innerHTML = originalText;
+            btn.innerHTML = original;
             lucide.createIcons();
         }
     });
+
 });
 
+
+// ===============================
+// FETCH LOCATIONS
+// ===============================
 async function fetchLocations() {
     try {
         const resp = await fetch(`${API_BASE}/locations/`);
+        if (!resp.ok) throw new Error("Failed to fetch locations");
+
         const data = await resp.json();
         const select = document.getElementById('location-select');
+
+        // Clear previous options
+        select.innerHTML = '<option value="">Select Location</option>';
 
         data.forEach(loc => {
             const opt = document.createElement('option');
             opt.value = loc.id;
             opt.textContent = `${loc.name}, ${loc.city}`;
-            opt.className = 'bg-slate-900';
             select.appendChild(opt);
         });
 
-        // Add dummy location if none exist
-        if (data.length === 0) {
-            // Seed a location via API for demo
-            await fetch(`${API_BASE}/locations/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: "Central Park",
-                    city: "New York",
-                    country: "USA",
-                    latitude: 40.785091,
-                    longitude: -73.968285
-                })
-            });
-            fetchLocations(); // Refresh
-        }
     } catch (e) {
-        console.error("Failed to fetch locations", e);
+        console.error("Location fetch error:", e);
     }
 }
 
+
+// ===============================
+// LOAD DASHBOARD
+// ===============================
 async function loadDashboard(locationId) {
+
     if (!locationId) return;
+
     currentSelectedLocation = locationId;
 
-    // 1. Fetch Latest Pollution Record
     try {
+        // 1️⃣ Pollution
         const resp = await fetch(`${API_BASE}/pollution/?location_id=${locationId}`);
         const records = await resp.json();
 
-        if (records.length > 0) {
-            const latest = records[0];
-            updateStatsView(latest);
-
-            // 2. Trigger Weather Prediction
-            await fetch(`${API_BASE}/ai/predict_weather/${locationId}`, { method: 'POST' });
-            const weatherResp = await fetch(`${API_BASE}/ai/predict_weather/${locationId}`, { method: 'POST' });
-            const weather = await weatherResp.json();
-            updateWeatherView(weather);
-
-            // 3. Fetch AI Insights (Analyze + Advice)
-            fetchAIInsights(locationId);
-        } else {
+        if (records.length === 0) {
             resetDashboardView();
+            return;
         }
+
+        const latest = records[0];
+        updateStatsView(latest);
+
+        // 2️⃣ Weather Prediction (Single Call)
+        const weatherResp = await fetch(`${API_BASE}/ai/predict_weather/${locationId}`, {
+            method: 'POST'
+        });
+
+        const weather = await weatherResp.json();
+        updateWeatherView(weather);
+
+        // 3️⃣ AI Analysis + Advice
+        fetchAIInsights(locationId);
+
     } catch (e) {
-        console.error("Failed to load dashboard data", e);
+        console.error("Dashboard load error:", e);
     }
 }
 
+
+// ===============================
+// UPDATE UI
+// ===============================
 function updateStatsView(data) {
+
     document.getElementById('latest-aqi').textContent = data.aqi;
     document.getElementById('aqi-status').textContent = getAQIDesc(data.aqi);
 
-    // Pollutant Bars
     document.getElementById('pm25-val').textContent = `${data.pm25} µg/m³`;
     document.getElementById('pm10-val').textContent = `${data.pm10} µg/m³`;
 
-    // Max values for bars (assumed 300)
-    document.getElementById('pm25-bar').style.width = `${Math.min((data.pm25 / 300) * 100, 100)}%`;
-    document.getElementById('pm10-bar').style.width = `${Math.min((data.pm10 / 300) * 100, 100)}%`;
+    document.getElementById('pm25-bar').style.width =
+        `${Math.min((data.pm25 / 300) * 100, 100)}%`;
+
+    document.getElementById('pm10-bar').style.width =
+        `${Math.min((data.pm10 / 300) * 100, 100)}%`;
 }
+
 
 function updateWeatherView(data) {
-    document.getElementById('predicted-temp').textContent = `${data.predicted_temp}°C`;
-    document.getElementById('weather-condition').textContent = data.condition;
+    document.getElementById('predicted-temp').textContent =
+        `${data.predicted_temp}°C`;
+    document.getElementById('weather-condition').textContent =
+        data.condition;
 }
 
+
+// ===============================
+// AI INSIGHTS
+// ===============================
 async function fetchAIInsights(locationId) {
+
     const adviceBox = document.getElementById('ai-advice-content');
     const analysisBox = document.getElementById('genai-analysis-text');
 
-    adviceBox.innerHTML = '<div class="flex items-center gap-2"><i data-lucide="loader" class="animate-spin" size="16"></i> AI is thinking...</div>';
-    analysisBox.textContent = 'Analyzing trends...';
+    adviceBox.innerHTML =
+        '<i data-lucide="loader" class="animate-spin" size="16"></i> AI is analyzing...';
+    analysisBox.textContent = "Analyzing trends...";
     lucide.createIcons();
 
     try {
-        // Analysis
         const analysisResp = await fetch(`${API_BASE}/ai/analyze/${locationId}`);
         const analysisData = await analysisResp.json();
-        analysisBox.textContent = analysisData.analysis.substring(0, 150) + "...";
 
-        // Advice
+        analysisBox.textContent =
+            analysisData.analysis.substring(0, 150) + "...";
+
         const adviceResp = await fetch(`${API_BASE}/ai/advice/${locationId}`);
         const adviceData = await adviceResp.json();
-        adviceBox.innerHTML = adviceData.advice.replace(/\n/g, '<br>');
+
+        adviceBox.innerHTML =
+            adviceData.advice.replace(/\n/g, '<br>');
+
     } catch (e) {
-        adviceBox.textContent = "Please set your Gemini API key to enable AI features.";
-        analysisBox.textContent = "AI analysis currently unavailable.";
+        adviceBox.textContent =
+            "AI services unavailable. Check Gemini API key.";
+        analysisBox.textContent =
+            "AI analysis currently unavailable.";
     }
 }
 
+
+// ===============================
+// HELPERS
+// ===============================
 function getAQIDesc(aqi) {
     if (aqi <= 50) return "Healthy Air Quality";
     if (aqi <= 100) return "Moderate Air Quality";
     if (aqi <= 150) return "Unhealthy for Sensitive Groups";
+    if (aqi <= 200) return "Unhealthy";
+    if (aqi <= 300) return "Very Unhealthy";
     return "Hazardous Pollution Levels";
 }
+
 
 function resetDashboardView() {
     document.getElementById('latest-aqi').textContent = "--";
     document.getElementById('predicted-temp').textContent = "--°C";
-    document.getElementById('ai-advice-content').textContent = "No data found for this location. Add a record to begin.";
+    document.getElementById('ai-advice-content').textContent =
+        "No data found. Add pollution record.";
 }
 
-// Modal Toggle
-function showManagement() { document.getElementById('modal').classList.remove('hidden'); }
-function hideManagement() { document.getElementById('modal').classList.add('hidden'); }
+
+// ===============================
+// MODAL TOGGLE
+// ===============================
+function showManagement() {
+    document.getElementById('modal').classList.remove('hidden');
+}
+
+function hideManagement() {
+    document.getElementById('modal').classList.add('hidden');
+}
+
+
